@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS AI</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #00d4ff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* تصميم دائرة جارفيس المينيمال */
+        .jarvis-orb {
+            width: 150px;
+            height: 150px;
+            border: 2px solid #00d4ff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.4);
+        }
+
+        .inner-circle {
+            width: 80%;
+            height: 80%;
+            border: 1px dashed #00d4ff;
+            border-radius: 50%;
+            animation: spin 8s linear infinite;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .listening .jarvis-orb {
+            border-color: #ff0000;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.6);
+        }
+
+        #status {
+            margin-top: 30px;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        #response-text {
+            width: 80%;
+            max-width: 700px;
+            text-align: center;
+            margin-top: 20px;
+            line-height: 1.6;
+            color: #fff;
+        }
+    </style>
+</head>
+<body onclick="initJarvis()">
+
+    <div class="jarvis-orb" id="orb">
+        <div class="inner-circle"></div>
+    </div>
+
+    <div id="status">اضغط مرة واحدة لتفعيل النظام</div>
+    <div id="response-text"></div>
+
+    <script>
+        const API_KEY = "AIzaSyBM2m1uQkMDWwlrN76SBUpuUtI3b_NSwHk"; // ضع مفتاحك هنا
+        let isListeningForCommand = false;
+
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.continuous = true; // النظام يظل يعمل باستمرار
+        recognition.lang = 'en-US'; // سيبحث عن كلمة Jarvis بالإنجليزية لضمان الدقة
+
+        function initJarvis() {
+            recognition.start();
+            document.getElementById('status').innerText = "النظام يعمل.. نادِ (Jarvis)";
+            speak("System activated, I am listening sir");
+        }
+
+        recognition.onresult = async (event) => {
+            const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+            console.log("سمعت: " + transcript);
+
+            if (!isListeningForCommand) {
+                // البحث عن كلمة التفعيل
+                if (transcript.includes("jarvis")) {
+                    isListeningForCommand = true;
+                    document.getElementById('orb').classList.add('listening');
+                    document.getElementById('status').innerText = "نعم يا سيدي؟";
+                    speak("Hello sir, how can I help you?");
+                    
+                    // تغيير اللغة للاستماع للطلب (يمكنك جعلها عربية هنا)
+                    recognition.lang = 'ar-SA'; 
+                }
+            } else {
+                // معالجة الطلب بعد سماع "Jarvis"
+                document.getElementById('status').innerText = "جاري المعالجة...";
+                const aiResponse = await askGemini(transcript);
+                
+                document.getElementById('response-text').innerText = aiResponse;
+                speak(aiResponse);
+
+                // العودة لوضع انتظار كلمة السر
+                isListeningForCommand = false;
+                document.getElementById('orb').classList.remove('listening');
+                document.getElementById('status').innerText = "في انتظارك.. (Jarvis)";
+                recognition.lang = 'en-US';
+            }
+        };
+
+        async function askGemini(prompt) {
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: "رد كأنك جارفيس، باختصار وذكاء: " + prompt }] }]
+                    })
+                });
+                const data = await response.json();
+                return data.candidates[0].content.parts[0].text;
+            } catch (e) {
+                return "سيدي، هناك خطأ في الاتصال بالسيرفر.";
+            }
+        }
+
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            // سيحاول اختيار صوت أنثوي أو صوت ذكاء اصطناعي بناءً على المتصفح
+            utterance.lang = isListeningForCommand ? 'ar-SA' : 'en-US';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // إعادة التشغيل تلقائياً إذا توقف الميكروفون
+        recognition.onend = () => recognition.start();
+
+    </script>
+</body>
+</html>
